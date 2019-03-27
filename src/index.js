@@ -7,8 +7,7 @@ const {
   RPC_PROVIDER,
   FUSE_ID_MANAGMENT_ACCOUNT_PRIVATE_KEY,
   FUSE_ID_CLAIM_ACCOUNT_PRIVATE_KEY,
-  USER_ACCOUNT_PRIVATE_KEY,
-  GAS_LIMIT
+  USER_ACCOUNT_PRIVATE_KEY
 } = process.env
 
 const web3 = new Web3(new Web3.providers.HttpProvider(RPC_PROVIDER))
@@ -34,14 +33,14 @@ const main = async () => {
   console.log(`FuseIdClaimAccount: ${FuseIdClaimAccount}`)
 
   // user account
-  const userAccount = privateKeyToAddress(USER_ACCOUNT_PRIVATE_KEY)
-  console.log(`userAccount: ${userAccount}`)
+  const UserAccount = privateKeyToAddress(USER_ACCOUNT_PRIVATE_KEY)
+  console.log(`UserAccount: ${UserAccount}`)
 
   let FuseIdManagementAccountNonce
-  let userAccountNonce
+  let UserAccountNonce
 
   /*********************************************************************************/
-  console.log(`\n===== fuse id deploying a ClaimHolder =====`)
+  console.log(`\n===== deploying FuseIdClaimHolder =====`)
   FuseIdManagementAccountNonce = await web3.eth.getTransactionCount(FuseIdManagementAccount)
   const FuseIdClaimHolder = await Contracts.deploy(
     claimHolderBuild.abi,
@@ -54,7 +53,7 @@ const main = async () => {
   console.log(`FuseIdClaimHolder: ${FuseIdClaimHolder.options.address}`)
 
   /*********************************************************************************/
-  console.log(`\n===== fuse id claim account is adding a claim to ClaimHolder =====`)
+  console.log(`\n===== FuseIdClaimAccount is adding a claim to FuseIdClaimHolder =====`)
   const FuseIdClaimKey = web3.utils.keccak256(FuseIdClaimAccount)
   console.log(`FuseIdClaimKey: ${FuseIdClaimKey}`)
   const addKeyABI = await FuseIdClaimHolder.methods
@@ -75,23 +74,23 @@ const main = async () => {
   )
 
   /*********************************************************************************/
-  console.log(`\n===== user deploying a ClaimHolder =====`)
-  userAccountNonce = await web3.eth.getTransactionCount(userAccount)
-  const userClaimHolder = await Contracts.deploy(
+  console.log(`\n===== deploying UserClaimHolder =====`)
+  UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
+  const UserClaimHolder = await Contracts.deploy(
     claimHolderBuild.abi,
     claimHolderBuild.bytecode,
     null,
-    userAccount,
+    UserAccount,
     Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex'),
-    userAccountNonce
+    UserAccountNonce
   )
-  console.log(`userClaimHolder: ${userClaimHolder.options.address}`)
+  console.log(`UserClaimHolder: ${UserClaimHolder.options.address}`)
 
   /*********************************************************************************/
-  console.log(`\n===== fuse id signs a KYC claim for user to add to his ClaimHolder (after on/off chain process) =====`)
+  console.log(`\n===== FuseIDClaimAccount signs a KYC claim for user to add to his ClaimHolder (after on/off chain process) =====`)
   const hexedData = web3.utils.asciiToHex('This guy is legit')
   const hashedDataToSign = web3.utils.soliditySha3(
-    userClaimHolder.options.address,
+    UserClaimHolder.options.address,
     Constants.CLAIM_TYPES.KYC,
     hexedData,
   )
@@ -103,10 +102,10 @@ const main = async () => {
   console.log(`signatureObj: ${JSON.stringify(signatureObj)}`)
 
   /*********************************************************************************/
-  console.log(`\n===== user adds the signed fuse ID claim to his ClaimHolder =====`)
+  console.log(`\n===== user adds the signed FuseID claim to his ClaimHolder =====`)
   const claimIssuer = FuseIdClaimHolder.options.address
   console.log(`claimIssuer: ${claimIssuer}`)
-  const addClaimABI = await userClaimHolder.methods.
+  const addClaimABI = await UserClaimHolder.methods.
     addClaim(
       Constants.CLAIM_TYPES.KYC,
       Constants.CLAIM_SCHEMES.ECDSA,
@@ -115,13 +114,13 @@ const main = async () => {
       hexedData,
       'https://www.fuse.io'
     ).encodeABI({
-      from: userAccount
+      from: UserAccount
     })
-  userAccountNonce = await web3.eth.getTransactionCount(userAccount)
+  UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
   const addClaimResult = await Contracts.call(
     addClaimABI,
-    userAccountNonce,
-    userClaimHolder.options.address,
+    UserAccountNonce,
+    UserClaimHolder.options.address,
     Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex')
   )
 
@@ -129,7 +128,7 @@ const main = async () => {
   console.log(`\n===== check the claim =====`)
   const kycClaimId = web3.utils.soliditySha3(claimIssuer, Constants.CLAIM_TYPES.KYC)
   console.log(`kycClaimId: ${kycClaimId}`)
-  const theKycClaim = await userClaimHolder.methods.getClaim(kycClaimId).call()
+  const theKycClaim = await UserClaimHolder.methods.getClaim(kycClaimId).call()
   console.log(`theKycClaim: ${JSON.stringify(theKycClaim)}`)
 
   /*********************************************************************************/
@@ -151,7 +150,7 @@ const main = async () => {
   const superTokenSale = await Contracts.deploy(
     superTokenSaleBuild.abi,
     superTokenSaleBuild.bytecode,
-    [1, FuseIdManagementAccount, superToken.options.address, FuseIdClaimHolder.options.address],
+    [100, FuseIdManagementAccount, superToken.options.address, FuseIdClaimHolder.options.address],
     FuseIdManagementAccount,
     Buffer.from(FUSE_ID_MANAGMENT_ACCOUNT_PRIVATE_KEY, 'hex'),
     nonce
@@ -161,20 +160,29 @@ const main = async () => {
   /*********************************************************************************/
   console.log(`\n===== user buys the SuperToken from the SuperTokenSale (which will check the KYC claim) =====`)
 
-  console.log('\t', 'User initial balance:', await superToken.methods.balanceOf(userAccount).call())
+  const initialBalance = await superToken.methods.balanceOf(UserAccount).call()
+  console.log(`\tUser initial balance: ${initialBalance}`)
 
-  const buyTokensABI = superTokenSale.methods.buyTokens(
+  const buyTokensABI = await superTokenSale.methods.buyTokens(
     FuseIdClaimHolder.options.address
   ).encodeABI()
   const executeABI = await FuseIdClaimHolder.methods.execute(
     superTokenSale.options.address,
-    web3.utils.toWei('1', 'ether'),
+    web3.utils.toWei('0.01', 'ether'),
     buyTokensABI,
   ).encodeABI({
-    from: userAccount
+    from: UserAccount
   })
+  UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
+  const executeResult = await Contracts.call(
+    executeABI,
+    UserAccountNonce,
+    FuseIdClaimHolder.options.address,
+    Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex')
+  )
 
-  console.log('\t', 'User new balance:', await superToken.methods.balanceOf(userAccount).call())
+  const newBalance = await superToken.methods.balanceOf(UserAccount).call()
+  console.log(`\tUser new balance: ${newBalance}`)
 }
 
 main()
