@@ -15,7 +15,8 @@ const web3 = new Web3(new Web3.providers.HttpProvider(RPC_PROVIDER))
 Contracts.init(web3)
 
 const claimHolderBuild = require('../build/contracts/ClaimHolder')
-const counterBuild = require('../build/contracts/Counter')
+const superTokenBuild = require('../build/contracts/SuperToken')
+const superTokenSaleBuild = require('../build/contracts/SuperTokenSale')
 
 const privateKeyToAddress = (privateKey) => {
   const add0xPrefix = (s) => s.indexOf('0x') === 0 ? s : `0x${s}`
@@ -132,35 +133,48 @@ const main = async () => {
   console.log(`theKycClaim: ${JSON.stringify(theKycClaim)}`)
 
   /*********************************************************************************/
-  console.log(`\n===== deploy Counter =====`)
+  console.log(`\n===== deploy SuperToken =====`)
   nonce = await web3.eth.getTransactionCount(FuseIdManagementAccount)
-  const counter = await Contracts.deploy(
-    counterBuild.abi,
-    counterBuild.bytecode,
-    [FuseIdClaimHolder.options.address],
+  const superToken = await Contracts.deploy(
+    superTokenBuild.abi,
+    superTokenBuild.bytecode,
+    [],
     FuseIdManagementAccount,
     Buffer.from(FUSE_ID_MANAGMENT_ACCOUNT_PRIVATE_KEY, 'hex'),
     nonce
   )
-  console.log(`counter: ${counter.options.address}`)
+  console.log(`superToken: ${superToken.options.address}`)
 
   /*********************************************************************************/
-  console.log(`\n===== increment Counter =====`)
-  const incrCounterABI = await counter.methods.incrementCounter().encodeABI()
-  const executeABI = await userClaimHolder.methods.execute(
-    counter.options.address,
-    web3.utils.toWei('0', 'ether'),
-    incrCounterABI
+  console.log(`\n===== deploy SuperTokenSale =====`)
+  nonce = await web3.eth.getTransactionCount(FuseIdManagementAccount)
+  const superTokenSale = await Contracts.deploy(
+    superTokenSaleBuild.abi,
+    superTokenSaleBuild.bytecode,
+    [1, FuseIdManagementAccount, superToken.options.address, FuseIdClaimHolder.options.address],
+    FuseIdManagementAccount,
+    Buffer.from(FUSE_ID_MANAGMENT_ACCOUNT_PRIVATE_KEY, 'hex'),
+    nonce
+  )
+  console.log(`superTokenSale: ${superTokenSale.options.address}`)
+
+  /*********************************************************************************/
+  console.log(`\n===== user buys the SuperToken from the SuperTokenSale (which will check the KYC claim) =====`)
+
+  console.log('\t', 'User initial balance:', await superToken.methods.balanceOf(userAccount).call())
+
+  const buyTokensABI = superTokenSale.methods.buyTokens(
+    FuseIdClaimHolder.options.address
+  ).encodeABI()
+  const executeABI = await FuseIdClaimHolder.methods.execute(
+    superTokenSale.options.address,
+    web3.utils.toWei('1', 'ether'),
+    buyTokensABI,
   ).encodeABI({
     from: userAccount
   })
-  userAccountNonce = await web3.eth.getTransactionCount(userAccount)
-  const executeResult = await Contracts.call(
-    executeABI,
-    userAccountNonce,
-    userClaimHolder.options.address,
-    Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex')
-  )
+
+  console.log('\t', 'User new balance:', await superToken.methods.balanceOf(userAccount).call())
 }
 
 main()

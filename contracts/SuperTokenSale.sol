@@ -1,40 +1,43 @@
 pragma solidity ^0.4.24;
 
+import './SuperToken.sol';
 import './ClaimHolder.sol';
+import 'openzeppelin-solidity/contracts/crowdsale/emission/MintedCrowdsale.sol';
 
-contract Counter {
+contract SuperTokenSale is MintedCrowdsale {
   event ClaimValid(ClaimHolder _identity, uint256 claimType);
   event ClaimInvalid(ClaimHolder _identity, uint256 claimType);
 
   ClaimHolder public trustedClaimHolder;
-  int private count = 0;
 
-  event Called(address _who);
-
-  constructor (address _trustedClaimHolder) public
-  {
+  constructor (
+    uint256 _rate,
+    address _wallet,
+    MintableToken _token,
+    address _trustedClaimHolder
+  ) public Crowdsale(_rate, _wallet, _token) {
     trustedClaimHolder = ClaimHolder(_trustedClaimHolder);
   }
 
-  function incrementCounter() public {
-    emit Called(msg.sender);
-    ClaimHolder beneficiaryIdentity = ClaimHolder(msg.sender);
+  /*
+   * overriden from openzeppelin-solidity/contracts/crowdsale/Crowdsale.sol
+   */
+  function _preValidatePurchase(
+    address _beneficiary,
+    uint256 _weiAmount
+  )
+    internal
+  {
+    require(_beneficiary != address(0));
+    require(_weiAmount != 0);
+
+    ClaimHolder beneficiaryIdentity = ClaimHolder(_beneficiary);
     require(checkClaim(beneficiaryIdentity, 7));
-    count += 1;
   }
 
-  function decrementCounter() public {
-    emit Called(msg.sender);
-    ClaimHolder beneficiaryIdentity = ClaimHolder(msg.sender);
-    require(checkClaim(beneficiaryIdentity, 7));
-    count -= 1;
-  }
-
-  function getCount() public constant returns (int) {
-    return count;
-  }
-
-  function checkClaim(ClaimHolder _identity, uint256 claimType) public returns (bool claimValid)
+  function checkClaim(ClaimHolder _identity, uint256 claimType)
+    public
+    returns (bool claimValid)
   {
     if (claimIsValid(_identity, claimType)) {
       emit ClaimValid(_identity, claimType);
@@ -45,7 +48,10 @@ contract Counter {
     }
   }
 
-  function claimIsValid(ClaimHolder _identity, uint256 claimType) public constant returns (bool claimValid)
+  function claimIsValid(ClaimHolder _identity, uint256 claimType)
+    public
+    constant
+    returns (bool claimValid)
   {
     uint256 foundClaimType;
     uint256 scheme;
@@ -72,7 +78,10 @@ contract Counter {
     return trustedClaimHolder.keyHasPurpose(hashedAddr, 3);
   }
 
-  function getRecoveredAddress(bytes sig, bytes32 dataHash) public pure returns (address addr)
+  function getRecoveredAddress(bytes sig, bytes32 dataHash)
+      public
+      pure
+      returns (address addr)
   {
       bytes32 ra;
       bytes32 sa;
