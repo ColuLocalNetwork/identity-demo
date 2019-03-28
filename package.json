@@ -6,6 +6,7 @@
   "scripts": {
     "compile": "truffle compile",
     "flatten": "bash flatten.sh",
+    "ganache": "bash ganache.sh",
     "start": "npm run compile && npm run flatten && node src/index.js"
   },
   "author": "LiorRabin",

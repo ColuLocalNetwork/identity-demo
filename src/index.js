@@ -164,9 +164,9 @@ const main = async () => {
   console.log(`\tUser initial balance: ${initialBalance}`)
 
   const buyTokensABI = await superTokenSale.methods.buyTokens(
-    FuseIdClaimHolder.options.address
+    UserClaimHolder.options.address
   ).encodeABI()
-  const executeABI = await FuseIdClaimHolder.methods.execute(
+  const executeABI = await UserClaimHolder.methods.execute(
     superTokenSale.options.address,
     web3.utils.toWei('0.01', 'ether'),
     buyTokensABI,
@@ -177,7 +177,7 @@ const main = async () => {
   const executeResult = await Contracts.call(
     executeABI,
     UserAccountNonce,
-    FuseIdClaimHolder.options.address,
+    UserClaimHolder.options.address,
     Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex')
   )
 
