@@ -204,11 +204,10 @@ const main = async () => {
     UserClaimHolder.options.address
   ).encodeABI()
   console.log(`buyTokensABI: ${buyTokensABI}`)
-  const amountETH = 1
-  const amountWEI = web3.utils.toWei(amountETH.toString(), 'ether')
+  const amount = web3.utils.toWei('1', 'ether')
   const executeMethod = await UserClaimHolder.methods.execute(
     superTokenSale.options.address,
-    amountWEI,
+    amount,
     buyTokensABI
   )
   const buyTokensExecuteABI = executeMethod.encodeABI()
@@ -216,7 +215,7 @@ const main = async () => {
   UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
   const buyTokensExecuteResult = await Contracts.call(
     buyTokensExecuteABI,
-    amountETH,
+    amount,
     UserAccountNonce,
     UserClaimHolder.options.address,
     USER_ACCOUNT_PRIVATE_KEY

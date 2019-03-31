@@ -109,7 +109,7 @@ module.exports = {
       gasPrice: GAS_PRICE,
       gasLimit: GAS_LIMIT
     }
-    if (value) opts.value = Buffer.from(value.toString(), 'hex')
+    if (value) opts.value = Web3Utils.toHex(value)
     const result = await sendRawTx(opts)
     assert.equal(Web3Utils.hexToNumber(result.status), 1, 'Transaction Failed')
   }
