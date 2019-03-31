@@ -7,7 +7,8 @@ const {
   RPC_PROVIDER,
   FUSE_ID_MANAGMENT_ACCOUNT_PRIVATE_KEY,
   FUSE_ID_CLAIM_ACCOUNT_PRIVATE_KEY,
-  USER_ACCOUNT_PRIVATE_KEY
+  USER_ACCOUNT_PRIVATE_KEY,
+  TOKEN_AND_SALE_ACCOUNT_PRIVATE_KEY
 } = process.env
 
 const web3 = new Web3(new Web3.providers.HttpProvider(RPC_PROVIDER))
@@ -36,8 +37,13 @@ const main = async () => {
   const UserAccount = privateKeyToAddress(USER_ACCOUNT_PRIVATE_KEY)
   console.log(`UserAccount: ${UserAccount}`)
 
+  // token & sale deployment account
+  const TokenAndSaleDeploymentAccount = privateKeyToAddress(TOKEN_AND_SALE_ACCOUNT_PRIVATE_KEY)
+  console.log(`TokenAndSaleDeploymentAccount: ${TokenAndSaleDeploymentAccount}`)
+
   let FuseIdManagementAccountNonce
   let UserAccountNonce
+  let TokenAndSaleDeploymentAccountNonce
 
   /*********************************************************************************/
   console.log(`\n===== deploying FuseIdClaimHolder =====`)
@@ -133,29 +139,44 @@ const main = async () => {
 
   /*********************************************************************************/
   console.log(`\n===== deploy SuperToken =====`)
-  nonce = await web3.eth.getTransactionCount(FuseIdManagementAccount)
+  TokenAndSaleDeploymentAccountNonce = await web3.eth.getTransactionCount(TokenAndSaleDeploymentAccount)
   const superToken = await Contracts.deploy(
     superTokenBuild.abi,
     superTokenBuild.bytecode,
     [],
-    FuseIdManagementAccount,
-    Buffer.from(FUSE_ID_MANAGMENT_ACCOUNT_PRIVATE_KEY, 'hex'),
-    nonce
+    TokenAndSaleDeploymentAccount,
+    Buffer.from(TOKEN_AND_SALE_ACCOUNT_PRIVATE_KEY, 'hex'),
+    TokenAndSaleDeploymentAccountNonce
   )
   console.log(`superToken: ${superToken.options.address}`)
 
   /*********************************************************************************/
   console.log(`\n===== deploy SuperTokenSale =====`)
-  nonce = await web3.eth.getTransactionCount(FuseIdManagementAccount)
+  TokenAndSaleDeploymentAccountNonce = await web3.eth.getTransactionCount(TokenAndSaleDeploymentAccount)
   const superTokenSale = await Contracts.deploy(
     superTokenSaleBuild.abi,
     superTokenSaleBuild.bytecode,
-    [100, FuseIdManagementAccount, superToken.options.address, FuseIdClaimHolder.options.address],
-    FuseIdManagementAccount,
-    Buffer.from(FUSE_ID_MANAGMENT_ACCOUNT_PRIVATE_KEY, 'hex'),
-    nonce
+    [10, TokenAndSaleDeploymentAccount, superToken.options.address, FuseIdClaimHolder.options.address],
+    TokenAndSaleDeploymentAccount,
+    Buffer.from(TOKEN_AND_SALE_ACCOUNT_PRIVATE_KEY, 'hex'),
+    TokenAndSaleDeploymentAccountNonce
   )
   console.log(`superTokenSale: ${superTokenSale.options.address}`)
+
+  /*********************************************************************************/
+  console.log(`\n===== transfer SuperToken ownership to SuperTokenSale =====`)
+  TokenAndSaleDeploymentAccountNonce = await web3.eth.getTransactionCount(TokenAndSaleDeploymentAccount)
+  const transferOwnershipABI = await superToken.methods.transferOwnership(
+    superTokenSale.options.address
+  ).encodeABI({
+    from: TokenAndSaleDeploymentAccount
+  })
+  const transferOwnershipResult = await Contracts.call(
+    transferOwnershipABI,
+    TokenAndSaleDeploymentAccountNonce,
+    TokenAndSaleDeploymentAccount,
+    Buffer.from(TOKEN_AND_SALE_ACCOUNT_PRIVATE_KEY, 'hex')
+  )
 
   /*********************************************************************************/
   console.log(`\n===== user buys the SuperToken from the SuperTokenSale (which will check the KYC claim) =====`)
@@ -166,23 +187,27 @@ const main = async () => {
   const buyTokensABI = await superTokenSale.methods.buyTokens(
     UserClaimHolder.options.address
   ).encodeABI()
+  console.log(`buyTokensABI: ${buyTokensABI}`)
   const executeABI = await UserClaimHolder.methods.execute(
     superTokenSale.options.address,
-    web3.utils.toWei('0.01', 'ether'),
-    buyTokensABI,
+    web3.utils.toWei('1', 'ether'),
+    buyTokensABI
   ).encodeABI({
     from: UserAccount
   })
+  console.log(`executeABI: ${executeABI}`)
   UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
   const executeResult = await Contracts.call(
     executeABI,
     UserAccountNonce,
-    UserClaimHolder.options.address,
+    UserAccount,
     Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex')
   )
 
-  const newBalance = await superToken.methods.balanceOf(UserAccount).call()
-  console.log(`\tUser new balance: ${newBalance}`)
+  const userAccountNewBalance = await superToken.methods.balanceOf(UserAccount).call()
+  console.log(`\tUser new balance: ${userAccountNewBalance}`)
+  const userClaimHolderNewBalance = await superToken.methods.balanceOf(UserClaimHolder.options.address).call()
+  console.log(`\tUserClaimHolder new balance: ${userClaimHolderNewBalance}`)
 }
 
 main()
