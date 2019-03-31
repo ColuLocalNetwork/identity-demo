@@ -122,9 +122,18 @@ const main = async () => {
     ).encodeABI({
       from: UserAccount
     })
-  UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
-  const addClaimResult = await Contracts.call(
+
+  const addClaimExecuteABI = await UserClaimHolder.methods.execute(
+    UserClaimHolder.options.address,
+    0,
     addClaimABI,
+  ).encodeABI({
+    from: UserAccount
+  })
+
+  UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
+  const addClaimExecuteResult = await Contracts.call(
+    addClaimExecuteABI,
     UserAccountNonce,
     UserClaimHolder.options.address,
     Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex')
@@ -186,21 +195,23 @@ const main = async () => {
 
   const buyTokensABI = await superTokenSale.methods.buyTokens(
     UserClaimHolder.options.address
-  ).encodeABI()
+  ).encodeABI({
+    from: UserAccount
+  })
   console.log(`buyTokensABI: ${buyTokensABI}`)
-  const executeABI = await UserClaimHolder.methods.execute(
+  const buyTokensExecuteABI = await UserClaimHolder.methods.execute(
     superTokenSale.options.address,
     web3.utils.toWei('1', 'ether'),
     buyTokensABI
   ).encodeABI({
     from: UserAccount
   })
-  console.log(`executeABI: ${executeABI}`)
+  console.log(`buyTokensExecuteABI: ${buyTokensExecuteABI}`)
   UserAccountNonce = await web3.eth.getTransactionCount(UserAccount)
-  const executeResult = await Contracts.call(
-    executeABI,
+  const buyTokensExecuteResult = await Contracts.call(
+    buyTokensExecuteABI,
     UserAccountNonce,
-    UserAccount,
+    UserClaimHolder.options.address,
     Buffer.from(USER_ACCOUNT_PRIVATE_KEY, 'hex')
   )
 
