@@ -87,7 +87,7 @@ module.exports = {
       data: result,
       nonce: Web3Utils.toHex(nonce),
       to: null,
-      privateKey: privateKey,
+      privateKey: Buffer.from(privateKey, 'hex'),
       url: RPC_PROVIDER,
       gasPrice: GAS_PRICE,
       gasLimit: GAS_LIMIT
@@ -99,16 +99,18 @@ module.exports = {
     instance.deployedBlockNumber = tx.blockNumber
     return instance
   },
-  call: async (data, nonce, contractAddress, privateKey) => {
-    const result = await sendRawTx({
+  call: async (data, value, nonce, contractAddress, privateKey) => {
+    const opts = {
       data: data,
       nonce: nonce,
       to: contractAddress,
-      privateKey: privateKey,
+      privateKey: Buffer.from(privateKey, 'hex'),
       url: RPC_PROVIDER,
       gasPrice: GAS_PRICE,
       gasLimit: GAS_LIMIT
-    })
+    }
+    if (value) opts.value = Buffer.from(value.toString(), 'hex')
+    const result = await sendRawTx(opts)
     assert.equal(Web3Utils.hexToNumber(result.status), 1, 'Transaction Failed')
   }
 }
